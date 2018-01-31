@@ -24,7 +24,8 @@ function parseResult(err, resultText) {
 HQ.GameMaker = function () {
     let server = this;
     this.__games = [];
-    this.sig_session = null;
+    this.sig = null;
+
 
     /*------------------------------------------------
     |   class : Game
@@ -298,11 +299,8 @@ HQ.GameMaker = function () {
             };
 
             server.sig.onLogout  = function () {
-                logger.warn("Server has logged out, will try to reconnect in 10 seconds");
+                logger.warn("Server has logged out");
                 server.sig = null;
-                setTimeout( function() {
-                    server.init();
-                }, 10 * 1000);
             };
         });
     };
