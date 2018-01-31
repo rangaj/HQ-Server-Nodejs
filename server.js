@@ -46,7 +46,7 @@ if (cluster.isMaster) {
     let init = maker.init();
     init.then(() => {
         api(maker, app);
-        http_server.listen(9000);
+        http_server.listen(process.env.PORT || 9000);
     }).catch((e) => {
         logger.error(e);
     });
