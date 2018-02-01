@@ -116,6 +116,7 @@ function MasterApi(maker, app) {
         let query = req.body;
         let gid = query.gid || null;
         let quiz = query.quiz || null;
+        let timeout = query.timeout || 20;
 
         if(!gid || !quiz){
             res.json({err: "info_missing"});
@@ -132,6 +133,7 @@ function MasterApi(maker, app) {
                 res.json({err: "room_not_found"});
             } else {
                 game.quizSet = parsed.data;
+                game.timeout = timeout;
                 game.reset();
                 res.json({err: null});
             }

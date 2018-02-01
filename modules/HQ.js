@@ -42,6 +42,7 @@ HQ.GameMaker = function () {
         this.gameovers = {};
         this.players = {};
         this.sig_session = null;
+        this.timeout = 20;
 
         if (quizSet.length === 0) {
             logger.warn(`game ${gid} has an empty quiz set`);
@@ -109,6 +110,7 @@ HQ.GameMaker = function () {
             return new Promise((resolve, reject) => {
                 let quiz = Object.assign({}, game.nextQuiz());
                 delete quiz.answer;
+                quiz.total = game.quizSet.length;
                 game.answers[quiz.id] = {};
                 quiz = JSON.stringify({ type: "quiz", data: quiz });
                 server.sig.messageInstantSend(game.gid, quiz);
