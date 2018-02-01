@@ -33,6 +33,20 @@ if (process.env.NODE_ENV !== "production") {
 
 module.exports = {
     get: function (name) {
-        return winston.loggers.get(name);
+        // return winston.loggers.get(name);
+        return {
+            info: function(m){
+                let time = (new Date()).toISOString();
+                console.log(`${time} - ${m}`);
+            },
+            error: function(m){
+                let time = (new Date()).toISOString();
+                console.log(`${time} - ${m}`);
+            },
+            warn: function(m){
+                let time = (new Date()).toISOString();
+                console.log(`${time} - ${m}`);
+            }
+        };
     }
 };
