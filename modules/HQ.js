@@ -111,6 +111,7 @@ HQ.GameMaker = function () {
                 let quiz = Object.assign({}, game.nextQuiz());
                 delete quiz.answer;
                 quiz.total = game.quizSet.length;
+                quiz.timeout = game.timeout;
                 game.answers[quiz.id] = {};
                 quiz = JSON.stringify({ type: "quiz", data: quiz });
                 server.sig.messageInstantSend(game.gid, quiz);
