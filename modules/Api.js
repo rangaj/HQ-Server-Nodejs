@@ -133,6 +133,7 @@ function MasterApi(maker, app) {
                 res.json({err: "room_not_found"});
             } else {
                 game.quizSet = parsed.data;
+                logger.info(`updating quiz: ${JSON.stringify(game.quizSet)}`);
                 game.timeout = timeout;
                 game.reset();
                 res.json({err: null});

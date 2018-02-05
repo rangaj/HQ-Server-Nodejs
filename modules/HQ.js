@@ -284,13 +284,19 @@ HQ.GameMaker = function () {
                             server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: {} }));
                             break;
                         case "RequestChannelName":
-                            quiz = json.QuestionLanguage === "0" ? "quiz-2" : "quiz-1";
-                            logger.info(`using quiz set ${quiz}`);
-                            QuizFactory.load(quiz).then(result => {
-                                server.add(new HQ.Game(account, "Test Game1", result)).catch(_ => { });
-                                logger.info(`game ${account} added`);
+                            if(!game){
+                                logger.info(`room not exist, create new... ${game.gid}`);
+                                quiz = json.QuestionLanguage === "0" ? "quiz-2" : "quiz-1";
+                                logger.info(`using quiz set ${quiz}`);
+                                QuizFactory.load(quiz).then(result => {
+                                    server.add(new HQ.Game(account, "Test Game1", result)).catch(_ => { });
+                                    logger.info(`game ${account} added`);
+                                    server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
+                                });
+                            } else {
+                                logger.info(`room exits, reuse ${game.gid}`);
                                 server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
-                            });
+                            }
                             break;
                     }
                 };
