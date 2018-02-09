@@ -131,9 +131,16 @@ HQ.GameMaker = function () {
         };
 
         this.relive = function (uid) {
-            logger.info(`god bless ${uid}....now your life has returned`);
-            game.gameovers[uid] = undefined;
-            game.players[uid] = true;
+            logger.info(`player ${uid} try to revive himself...`)
+            let canplay = game.canplay(uid);
+            logger.info(`can player ${uid} play? ${canplay.result}`);
+            if (canplay.result) {
+                logger.info(`player ${uid} revive not needed`)
+            } else {
+                logger.info(`god bless ${uid}....now your life has returned`);
+                game.gameovers[uid] = undefined;
+                game.players[uid] = true;
+            }
         };
 
         this.answerCommited = function (uid) {
@@ -162,6 +169,30 @@ HQ.GameMaker = function () {
             }
         };
 
+        this.inviteRequest = invitee => {
+            logger.info(`try to inivite ${invitee}`);
+            return new Promise((resolve, reject) => {
+                let invite_msg = {
+                    type: "inviteRequest",
+                    data: {
+                        uid: invitee
+                    }
+                }
+                let request_options = {
+                    uri: `http://125.88.159.173:8000/signaling/v1/${sig_appid}/sendMessageTo`,
+                    method: 'POST',
+                    json: { "m": invite_msg, "uid": invitee }
+                };
+                request(request_options, function (error, response, body) {
+                    if (!error && response.statusCode == 200) {
+                        resolve();
+                    } else {
+                        reject(error);
+                    }
+                });
+            });
+        };
+
         this.summaryResult = function (sequence) {
             return new Promise((resolve, reject) => {
                 let results = game.answers[sequence] || {};
@@ -185,7 +216,15 @@ HQ.GameMaker = function () {
                     }
                     (resultSpread[commited] !== undefined) && resultSpread[commited]++;
                 });
-                logger.info(`right: ${rightUids.length}, wrong: ${wrongUids.length}, total: ${Object.keys(results).length}`);
+                if (sequence === game.quizSet.length - 1) {
+                    logger.info("=========================FINAL ROUND==========================");
+                } else {
+                    logger.info(`=========================QUIZ ${sequence + 1}==========================`)
+                }
+                logger.info(`right: ${rightUids.length} in total,  {${JSON.stringify(rightUids)}}`);
+                logger.info(`wrong: ${wrongUids.length} in total, {${JSON.stringify(wrongUids)}}`);
+                logger.info(`total: ${Object.keys(results).length} in total, {${JSON.stringify(rightUids)}`);
+                logger.info(`spread: ${JSON.stringify(resultSpread)}`);
                 let data = JSON.stringify({
                     type: "result",
                     data: {
@@ -284,8 +323,8 @@ HQ.GameMaker = function () {
                             server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: {} }));
                             break;
                         case "RequestChannelName":
-                            if(!game){
-                                logger.info(`room not exist, create new... ${game.gid}`);
+                            if (!game) {
+                                logger.info(`room not exist, create new...`);
                                 quiz = json.QuestionLanguage === "0" ? "quiz-2" : "quiz-1";
                                 logger.info(`using quiz set ${quiz}`);
                                 QuizFactory.load(quiz).then(result => {
@@ -298,6 +337,31 @@ HQ.GameMaker = function () {
                                 server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
                             }
                             break;
+                        case "inviteRequest":
+                            if (!game) {
+                                logger.info(`room not exist, cannot invite`);
+                                return;
+                            }
+
+                            if (!json.uid) {
+                                logger.info(`invitee not provided`)
+                                return;
+                            }
+
+                            game.inviteRequest(json.uid).then(() => {
+                                logger.info(`invite successfully sent to ${json.uid}`);
+                            });
+
+                            break;
+                        case "inviteResponse":
+                            if (!game) {
+                                logger.info(`room not exist, invalid invite response`);
+                                return;
+                            }
+
+                            logger.info(`received invite response ${JSON.stringify(json.data)}, forward to broadcaster`);
+                            server.sig.messageInstantSend(account, JSON.stringify({ type: "inviteResponse", data: json.data }));
+                            break;
                     }
                 };
                 resolve();
@@ -307,7 +371,7 @@ HQ.GameMaker = function () {
                 reject("failed");
             };
 
-            server.sig.onLogout  = function () {
+            server.sig.onLogout = function () {
                 logger.warn("Server has logged out");
                 server.sig = null;
             };

@@ -59,16 +59,5 @@ if (cluster.isMaster) {
     }).catch((e) => {
         logger.error(e);
     });
-
-
-    // QuizFactory.load("quiz-1").then(result => {
-    //     maker.add(new HQ.Game("10001", "Test Game1", result)).catch(_ => { });
-    //     logger.info(`Master cluster setting up ${numCPUs}`);
-    // });
 } else {
-    //cluster node
-    // const api = require("./modules/Api").cluster;
-    // initProcess(app);
-    // api(app);
-    // http_server.listen(8000);
 }
