@@ -116,7 +116,7 @@ HQ.GameMaker = function () {
                 quiz = JSON.stringify({ type: "quiz", data: quiz });
                 server.sig.messageInstantSend(game.gid, quiz);
                 var options = {
-                    uri: `http://125.88.159.173:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
+                    uri: `http://hq-im.agoraio.cn:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
                     method: 'POST',
                     json: { "m": quiz, "channel": game.gid }
                 };
@@ -169,29 +169,6 @@ HQ.GameMaker = function () {
             }
         };
 
-        this.inviteRequest = invitee => {
-            logger.info(`try to inivite ${invitee}`);
-            return new Promise((resolve, reject) => {
-                let invite_msg = {
-                    type: "inviteRequest",
-                    data: {
-                        uid: invitee
-                    }
-                }
-                let request_options = {
-                    uri: `http://125.88.159.173:8000/signaling/v1/${sig_appid}/sendMessageTo`,
-                    method: 'POST',
-                    json: { "m": invite_msg, "uid": invitee }
-                };
-                request(request_options, function (error, response, body) {
-                    if (!error && response.statusCode == 200) {
-                        resolve();
-                    } else {
-                        reject(error);
-                    }
-                });
-            });
-        };
 
         this.summaryResult = function (sequence) {
             return new Promise((resolve, reject) => {
@@ -237,7 +214,7 @@ HQ.GameMaker = function () {
                 });
                 server.sig.messageInstantSend(game.gid, data);
                 let request_options = {
-                    uri: `http://125.88.159.173:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
+                    uri: `http://hq-im.agoraio.cn:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
                     method: 'POST',
                     json: { "m": data, "channel": game.gid }
                 };
@@ -251,6 +228,35 @@ HQ.GameMaker = function () {
             });
         };
     };
+
+    HQ.Game.inviteRequest = invitee => {
+        logger.info(`try to inivite ${invitee}`);
+        return new Promise((resolve, reject) => {
+            let invite_msg = {
+                type: "inviteRequest",
+                data: {
+                    uid: invitee
+                }
+            }
+            let request_options = {
+                uri: `http://hq-im.agoraio.cn:8000/signaling/v1/${sig_appid}/sendMessageTo`,
+                method: 'POST',
+                json: { "m": JSON.stringify(invite_msg), "uid": invitee }
+            };
+            request(request_options, function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    resolve();
+                } else {
+                    reject(error);
+                }
+            });
+        });
+    };
+
+    HQ.Game.inviteResponse = (invitee, accept) => {
+        logger.info(`invite response received from ${invitee}`);
+        server.sig.messageInstantSend(cc_id, JSON.stringify({ type: "inviteResponse", data: {accept: accept} }));
+    }
 
     /*------------------------------------------------
     |   function : GameMaker
@@ -338,29 +344,29 @@ HQ.GameMaker = function () {
                             }
                             break;
                         case "inviteRequest":
-                            if (!game) {
-                                logger.info(`room not exist, cannot invite`);
-                                return;
-                            }
+                            // if (!game) {
+                            //     logger.info(`room not exist, cannot invite`);
+                            //     return;
+                            // }
 
-                            if (!json.uid) {
+                            if (!json.data || !json.data.uid) {
                                 logger.info(`invitee not provided`)
                                 return;
                             }
 
-                            game.inviteRequest(json.uid).then(() => {
-                                logger.info(`invite successfully sent to ${json.uid}`);
+                            HQ.Game.inviteRequest(json.data.uid).then(() => {
+                                logger.info(`invite successfully sent to ${json.data.uid}`);
                             });
 
                             break;
                         case "inviteResponse":
-                            if (!game) {
-                                logger.info(`room not exist, invalid invite response`);
-                                return;
-                            }
+                            // if (!game) {
+                            //     logger.info(`room not exist, invalid invite response`);
+                            //     return;
+                            // }
 
-                            logger.info(`received invite response ${JSON.stringify(json.data)}, forward to broadcaster`);
-                            server.sig.messageInstantSend(account, JSON.stringify({ type: "inviteResponse", data: json.data }));
+                            // logger.info(`received invite response ${JSON.stringify(json.data)}, forward to broadcaster`);
+                            // server.sig.messageInstantSend(account, JSON.stringify({ type: "inviteResponse", data: json.data }));
                             break;
                     }
                 };

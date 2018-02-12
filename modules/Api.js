@@ -1,5 +1,6 @@
 const logger = require("./logger").get("hq");
 const QuizFactory = require("./QuizFactory");
+const HQ = require("./HQ");
 
 function MasterApi(maker, app) {
     app.get("/v1/vendor", (req, res) => {
@@ -57,6 +58,20 @@ function MasterApi(maker, app) {
                 res.json({});
             }
         }
+    });
+
+    app.post("/v1/inviteResponse", (req, res) => {
+        let query = req.body;
+        let account = query.account || null;
+        let accept = query.accept || false;
+
+        if(!account){
+            res.json({err: "info_missing"});
+            return;
+        }
+
+        HQ.Game.inviteResponse(account, accept);
+        res.json({err: null});
     });
 
     app.get("/v1/canplay", (req, res) => {
@@ -138,6 +153,16 @@ function MasterApi(maker, app) {
                 game.reset();
                 res.json({err: null});
             }
+        }
+    });
+
+    app.post("/v1/inviteResponse", (req, res) => {
+        let query = req.body;
+        let accept = query.accept || false;
+        let account = query.account || "";
+
+        if(!account){
+            //insufficient info
         }
     });
 
