@@ -5,6 +5,7 @@ const sig_appid = config.agora_appid;
 const cc_id = config.cc_id;
 const QuizFactory = require("./QuizFactory");
 const request = require("request");
+const supported_encrypt = ["v1"];
 
 let HQ = {};
 
@@ -116,7 +117,7 @@ HQ.GameMaker = function () {
                 quiz = JSON.stringify({ type: "quiz", data: quiz });
                 server.sig.messageInstantSend(game.gid, quiz);
                 var options = {
-                    uri: `http://125.88.159.173:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
+                    uri: `http://hq-im.agoraio.cn:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
                     method: 'POST',
                     json: { "m": quiz, "channel": game.gid }
                 };
@@ -198,7 +199,7 @@ HQ.GameMaker = function () {
                 });
                 server.sig.messageInstantSend(game.gid, data);
                 let request_options = {
-                    uri: `http://125.88.159.173:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
+                    uri: `http://hq-im.agoraio.cn:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
                     method: 'POST',
                     json: { "m": data, "channel": game.gid }
                 };
@@ -250,6 +251,7 @@ HQ.GameMaker = function () {
                     let game = server.get(account);
                     let quiz = "quiz-1";
                     let lang = 0;
+                    let encrypt = null;
 
                     switch (json.type) {
                         case "publish":
@@ -285,8 +287,13 @@ HQ.GameMaker = function () {
                             break;
                         case "RequestChannelName":
                             if(!game){
-                                logger.info(`room not exist, create new... ${game.gid}`);
+                                logger.info(`room not exist, create new...`);
                                 quiz = json.QuestionLanguage === "0" ? "quiz-2" : "quiz-1";
+                                encrypt = json.encrypt || null;
+                                if(!supported_encrypt.includes(encrypt)){
+                                    logger.info(`unsupported encrypt method ${encrypt}, encryption disabled`)
+                                    encrypt = null;
+                                }
                                 logger.info(`using quiz set ${quiz}`);
                                 QuizFactory.load(quiz).then(result => {
                                     server.add(new HQ.Game(account, "Test Game1", result)).catch(_ => { });
