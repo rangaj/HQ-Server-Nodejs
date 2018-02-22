@@ -1,9 +1,9 @@
 
-#### 部署步骤
+#### deployment
 
-1. clone代码，进入modules修改config.js
-2. 分别填入融云sdk的app id, app secret与声网信令的appid
-3. 到根目录运行
+1. clone the source code, modify modules/config.js
+2. provide your agora signaling appid and signaling broadcast server
+3. back to root folder and run following
 
 ```javascript
 npm install
