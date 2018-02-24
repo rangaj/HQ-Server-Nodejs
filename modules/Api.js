@@ -63,14 +63,18 @@ function MasterApi(maker, app) {
     app.post("/v1/inviteResponse", (req, res) => {
         let query = req.body;
         let account = query.account || null;
-        let accept = query.accept || false;
+        let accept = query.accept || "false";
+        let mediaUid = query.mediaUid || "";
 
-        if(!account){
+        if(!account || !mediaUid){
             res.json({err: "info_missing"});
             return;
         }
 
-        HQ.Game.inviteResponse(account, accept);
+        logger.info(`api call invite response ${accept}`);
+        accept = accept === "true";
+
+        HQ.Game.inviteResponse(account, accept, mediaUid);
         res.json({err: null});
     });
 

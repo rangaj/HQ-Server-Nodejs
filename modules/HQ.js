@@ -5,6 +5,12 @@ const sig_appid = config.agora_appid;
 const cc_id = config.cc_id;
 const QuizFactory = require("./QuizFactory");
 const request = require("request");
+let cipher = null;
+try {
+    cipher = require("./Encrypt");
+} catch(e) {
+    cipher = require("./FakeEncrypt");
+}
 
 let HQ = {};
 
@@ -30,7 +36,7 @@ HQ.GameMaker = function () {
     /*------------------------------------------------
     |   class : Game
     \*----------------------------------------------*/
-    HQ.Game = function (gid, name, quizSet) {
+    HQ.Game = function (gid, name, quizSet, encrypt) {
         let game = this;
         this.gid = gid || `${parseInt(Math.random() * 1000000)}`;
         this.name = name;
@@ -43,6 +49,7 @@ HQ.GameMaker = function () {
         this.players = {};
         this.sig_session = null;
         this.timeout = 20;
+        this.encrypt = encrypt || null;
 
         if (quizSet.length === 0) {
             logger.warn(`game ${gid} has an empty quiz set`);
@@ -113,7 +120,11 @@ HQ.GameMaker = function () {
                 quiz.total = game.quizSet.length;
                 quiz.timeout = game.timeout;
                 game.answers[quiz.id] = {};
-                quiz = JSON.stringify({ type: "quiz", data: quiz });
+                if(cipher.supported.includes(game.encrypt)){
+                    quiz = cipher.encrypt("v1", JSON.stringify(quiz), game.gid);
+                }
+                quiz = { type: "quiz", data: quiz};
+                quiz = JSON.stringify(quiz);
                 server.sig.messageInstantSend(game.gid, quiz);
                 var options = {
                     uri: `http://hq-im.agoraio.cn:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
@@ -229,7 +240,7 @@ HQ.GameMaker = function () {
         };
     };
 
-    HQ.Game.inviteRequest = invitee => {
+    HQ.Game.inviteRequest = (invitee) => {
         logger.info(`try to inivite ${invitee}`);
         return new Promise((resolve, reject) => {
             let invite_msg = {
@@ -253,10 +264,15 @@ HQ.GameMaker = function () {
         });
     };
 
-    HQ.Game.inviteResponse = (invitee, accept) => {
-        logger.info(`invite response received from ${invitee}`);
-        server.sig.messageInstantSend(cc_id, JSON.stringify({ type: "inviteResponse", data: {accept: accept} }));
+    HQ.Game.inviteResponse = (invitee, accept, mediaUid) => {
+        let gid = HQ.Game.inviteMap[invitee];
+        logger.info(`invite response received from ${invitee}, send back to ${gid}`);
+        server.sig.messageInstantSend(gid, JSON.stringify({ type: "inviteResponse", data: {accept: accept, mediaUid: mediaUid, uid: invitee} }));
+        logger.info(`${JSON.stringify(HQ.Game.inviteMap)}`);
+        HQ.Game.inviteMap[invitee] = undefined;
     }
+
+    HQ.Game.inviteMap = {};
 
     /*------------------------------------------------
     |   function : GameMaker
@@ -295,6 +311,8 @@ HQ.GameMaker = function () {
                     let game = server.get(account);
                     let quiz = "quiz-1";
                     let lang = 0;
+                    let encrypt = null;
+                    let inviteGame = null;
 
                     switch (json.type) {
                         case "publish":
@@ -332,9 +350,14 @@ HQ.GameMaker = function () {
                             if (!game) {
                                 logger.info(`room not exist, create new...`);
                                 quiz = json.QuestionLanguage === "0" ? "quiz-2" : "quiz-1";
+                                encrypt = json.encrypt || null;
+                                if(!cipher.supported.includes(encrypt)){
+                                    encrypt = null;
+                                    logger.info(`ignore unsupported encrpyt method ${encrypt}`);
+                                }
                                 logger.info(`using quiz set ${quiz}`);
                                 QuizFactory.load(quiz).then(result => {
-                                    server.add(new HQ.Game(account, "Test Game1", result)).catch(_ => { });
+                                    server.add(new HQ.Game(account, "Test Game1", result, encrypt)).catch(_ => { });
                                     logger.info(`game ${account} added`);
                                     server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
                                 });
@@ -344,29 +367,30 @@ HQ.GameMaker = function () {
                             }
                             break;
                         case "inviteRequest":
-                            // if (!game) {
-                            //     logger.info(`room not exist, cannot invite`);
-                            //     return;
-                            // }
+                            if (!game) {
+                                logger.info(`room ${account} not exist, cannot invite`);
+                                return;
+                            }
 
                             if (!json.data || !json.data.uid) {
                                 logger.info(`invitee not provided`)
                                 return;
                             }
 
+                            HQ.Game.inviteMap[json.data.uid] = game.gid;
                             HQ.Game.inviteRequest(json.data.uid).then(() => {
                                 logger.info(`invite successfully sent to ${json.data.uid}`);
                             });
 
                             break;
                         case "inviteResponse":
-                            // if (!game) {
-                            //     logger.info(`room not exist, invalid invite response`);
+                            // inviteGame = HQ.Game.inviteMap[account];
+                            // if (!gid) {
+                            //     logger.info(`uninvited user ${account} try to send a response`);
                             //     return;
                             // }
 
-                            // logger.info(`received invite response ${JSON.stringify(json.data)}, forward to broadcaster`);
-                            // server.sig.messageInstantSend(account, JSON.stringify({ type: "inviteResponse", data: json.data }));
+                            // HQ.Game.inviteResponse(gid, account, json.data.accept, json.data.mediaUid);
                             break;
                     }
                 };
