@@ -47,12 +47,12 @@ function MasterApi(maker, app) {
         let query = req.body;
         let gid = query.gid || null;
 
-        if(!gid){
-            res.json({err: "info_missing"});
+        if (!gid) {
+            res.json({ err: "info_missing" });
         } else {
             let game = maker.get(gid);
-            if(!game){
-                res.json({err: "room_not_found"});
+            if (!game) {
+                res.json({ err: "room_not_found" });
             } else {
                 game.reset();
                 res.json({});
@@ -65,17 +65,22 @@ function MasterApi(maker, app) {
         let account = query.account || null;
         let accept = query.accept || "false";
         let mediaUid = query.mediaUid || "";
+        let gid = query.gid || "";
 
-        if(!account || !mediaUid){
-            res.json({err: "info_missing"});
+        if (!account || !mediaUid || !gid) {
+            res.json({ err: "info_missing" });
             return;
         }
 
-        logger.info(`api call invite response ${accept}`);
-        accept = accept === "true";
+        let game = maker.get(gid);
+        if (!game) {
+            res.json({ err: "room_not_found" });
+        } else {
+            logger.info(`api call invite response ${accept}`);
+            game.inviteResponse(account, accept, mediaUid);
+            res.json({ err: null });
+        }
 
-        HQ.Game.inviteResponse(account, accept, mediaUid);
-        res.json({err: null});
     });
 
     app.get("/v1/canplay", (req, res) => {
@@ -83,12 +88,12 @@ function MasterApi(maker, app) {
         let gid = query.gid || null;
         let uid = query.uid || null;
 
-        if(!gid || !uid){
-            res.json({err: "info_missing"});
+        if (!gid || !uid) {
+            res.json({ err: "info_missing" });
         } else {
             let game = maker.get(gid);
-            if(!game){
-                res.json({err: "room_not_found"});
+            if (!game) {
+                res.json({ err: "room_not_found" });
             } else {
                 res.json(game.canplay(uid));
             }
@@ -100,12 +105,12 @@ function MasterApi(maker, app) {
         let gid = query.gid || null;
         let uid = query.uid || null;
 
-        if(!gid || !uid){
-            res.json({err: "info_missing"});
+        if (!gid || !uid) {
+            res.json({ err: "info_missing" });
         } else {
             let game = maker.get(gid);
-            if(!game){
-                res.json({err: "room_not_found"});
+            if (!game) {
+                res.json({ err: "room_not_found" });
             } else {
                 game.relive(uid);
                 res.json({});
@@ -117,12 +122,12 @@ function MasterApi(maker, app) {
         let query = req.body;
         let gid = query.gid || null;
 
-        if(!gid){
-            res.json({err: "info_missing"});
+        if (!gid) {
+            res.json({ err: "info_missing" });
         } else {
             let game = maker.get(gid);
-            if(!game){
-                res.json({err: "room_not_found"});
+            if (!game) {
+                res.json({ err: "room_not_found" });
                 return;
             }
             game.publish(result => {
@@ -137,25 +142,25 @@ function MasterApi(maker, app) {
         let quiz = query.quiz || null;
         let timeout = query.timeout || 20;
 
-        if(!gid || !quiz){
-            res.json({err: "info_missing"});
+        if (!gid || !quiz) {
+            res.json({ err: "info_missing" });
             return;
         }
 
         let parsed = QuizFactory.parse(quiz);
-        if(parsed.err){
-            res.json({err: parsed.err});
+        if (parsed.err) {
+            res.json({ err: parsed.err });
         } else {
             //good quiz, set to channel
             let game = maker.get(gid);
-            if(!game){
-                res.json({err: "room_not_found"});
+            if (!game) {
+                res.json({ err: "room_not_found" });
             } else {
                 game.quizSet = parsed.data;
                 logger.info(`updating quiz: ${JSON.stringify(game.quizSet)}`);
                 game.timeout = timeout;
                 game.reset();
-                res.json({err: null});
+                res.json({ err: null });
             }
         }
     });
@@ -165,7 +170,7 @@ function MasterApi(maker, app) {
         let accept = query.accept || false;
         let account = query.account || "";
 
-        if(!account){
+        if (!account) {
             //insufficient info
         }
     });
@@ -178,33 +183,33 @@ function MasterApi(maker, app) {
         let answer = query.result;
 
         logger.info(`will answer: ${uid} ${gid} ${sid} ${answer}`);
-        if(!gid || sid === undefined || answer === undefined){
+        if (!gid || sid === undefined || answer === undefined) {
             logger.info("info_missing");
-            res.json({err: "info_missing"});
+            res.json({ err: "info_missing" });
         } else {
             let game = maker.get(gid);
-            if(!game){
+            if (!game) {
                 logger.info("room_not_found");
-                res.json({err: "room_not_found"});
+                res.json({ err: "room_not_found" });
             } else {
-                if(parseInt(sid) !== parseInt(game.sequence)){
+                if (parseInt(sid) !== parseInt(game.sequence)) {
                     logger.info(`mismatch quiz id given: ${sid}, current: ${game.sequence}`);
-                    res.json({err: "incorrect_quiz_id"});
+                    res.json({ err: "incorrect_quiz_id" });
                     return;
                 }
-                if(!game.open){
+                if (!game.open) {
                     logger.info(`game_closed`);
-                    res.json({err: "game_closed"});
+                    res.json({ err: "game_closed" });
                     return;
                 }
-                if(!game.canplay(uid)){
+                if (!game.canplay(uid)) {
                     logger.info(`cannot_play`);
-                    res.json({err: "cannot_play"});
+                    res.json({ err: "cannot_play" });
                     return;
                 }
-                if(game.answerCommited(uid)){
+                if (game.answerCommited(uid)) {
                     logger.info(`answer_given`);
-                    res.json({err: "answer_given"});
+                    res.json({ err: "answer_given" });
                     return;
                 }
 
@@ -217,7 +222,7 @@ function MasterApi(maker, app) {
 }
 
 function ClusterApi(app) {
-    
+
 }
 
 
