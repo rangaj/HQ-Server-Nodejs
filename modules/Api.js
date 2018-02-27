@@ -72,6 +72,8 @@ function MasterApi(maker, app) {
             return;
         }
 
+        accept = accept === "true";
+
         let game = maker.get(gid);
         if (!game) {
             res.json({ err: "room_not_found" });

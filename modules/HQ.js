@@ -126,7 +126,7 @@ HQ.GameMaker = function () {
                     encrypted_quiz = cipher.encrypt("v1", JSON.stringify(quiz), game.gid);
                 }
                 let raw_quiz = { type: "quiz", data: quiz };
-                encrypted_quiz = encrypted_quiz ? encrypted_quiz : { type: "quiz", data: quiz, encrypt: game.encrypt };
+                encrypted_quiz = encrypted_quiz ? { type: "quiz", data: encrypted_quiz, encrypt: game.encrypt } : { type: "quiz", data: quiz, encrypt: "null" };
                 raw_quiz = JSON.stringify(raw_quiz);
                 encrypted_quiz = JSON.stringify(encrypted_quiz);
                 server.sig.messageInstantSend(game.gid, raw_quiz);
@@ -416,6 +416,9 @@ HQ.GameMaker = function () {
                                 });
                             } else {
                                 logger.info(`room exits, reuse ${game.gid}`);
+                                game.reset();
+                                encrypt = json.encrypt || null;
+                                game.encrypt = encrypt;
                                 server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
                             }
                             break;
