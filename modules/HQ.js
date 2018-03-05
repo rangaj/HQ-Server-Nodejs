@@ -354,6 +354,7 @@ HQ.GameMaker = function () {
     this.init = () => {
         return new Promise((resolve, reject) => {
             let signal = new Signal(sig_appid);
+            signal.setup_debugging('env', 'lbs100');
             server.sig = signal.login(cc_id, "_no_need_token");
             server.sig.onLoginSuccess = function () {
                 logger.info(`agora cm login successful`);
