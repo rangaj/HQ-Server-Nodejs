@@ -3,8 +3,11 @@ const logger = require("./logger").get("hq");
 const config = require("./config");
 const sig_appid = config.agora_appid;
 const cc_id = config.cc_id;
+const socks_host = config.socks_proxy_host;
+const socks_port = config.socks_proxy_port;
 const QuizFactory = require("./QuizFactory");
 const request = require("request");
+const Agent = require('socks5-http-client/lib/Agent');
 let cipher = null;
 try {
     cipher = require("./Encrypt");
@@ -25,6 +28,16 @@ function parseResult(err, resultText) {
         }
     }
     return null;
+}
+
+function proxy(options){
+    if(socks_host){
+        logger.info(`using proxy`);
+        options.agentClass = Agent;
+        options.socksHost = socks_host;
+        options.socksPort = socks_port;
+    }
+    return options;
 }
 
 HQ.GameMaker = function () {
@@ -135,6 +148,7 @@ HQ.GameMaker = function () {
                     method: 'POST',
                     json: { "m": encrypted_quiz, "channel": game.gid }
                 };
+                proxy(options);
                 logger.info(`sending quiz ${quiz} to ${game.gid}`)
                 logger.info(`sending quiz ${encrypted_quiz} to ${game.gid}`)
                 request(options, function (error, response, body) {
@@ -238,6 +252,7 @@ HQ.GameMaker = function () {
                     method: 'POST',
                     json: { "m": data, "channel": game.gid }
                 };
+                proxy(request_options);
                 request(request_options, function (error, response, body) {
                     if (!error && response.statusCode == 200) {
                         resolve();
@@ -274,6 +289,7 @@ HQ.GameMaker = function () {
                         method: 'POST',
                         json: { "m": JSON.stringify(invite_msg), "uid": invitee }
                     };
+                    proxy(request_options);
                     request(request_options, function (error, response, body) {
                         if (!error && response.statusCode == 200) {
                             game.inviting = invitee;
@@ -305,6 +321,7 @@ HQ.GameMaker = function () {
                         method: 'POST',
                         json: { "m": JSON.stringify(invite_msg), "uid": game.inviting }
                     };
+                    proxy(request_options);
                     request(request_options, function (error, response, body) {
                         if (!error && response.statusCode == 200) {
                             logger.info(`invite end for ${game.inviting} successfully sent`);

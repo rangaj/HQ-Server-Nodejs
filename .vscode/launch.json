@@ -14,7 +14,12 @@
             "type": "node",
             "request": "launch",
             "name": "Launch Test",
-            "program": "${workspaceFolder}/test/testEncrypt.js"
+            "program": "${workspaceFolder}/test/test.js",
+            "args": [
+                "319294c67d174c878cc7922551e6e773",
+                "12345678",
+                "agora_hq_cc_server_en_2"
+            ]
         }
     ]
 }
