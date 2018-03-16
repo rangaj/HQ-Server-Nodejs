@@ -1,8 +1,20 @@
 const logger = require("./logger").get("hq");
 const QuizFactory = require("./QuizFactory");
 const HQ = require("./HQ");
+let cipher = null;
+try {
+    cipher = require("./Encrypt");
+} catch (e) {
+    cipher = require("./FakeEncrypt");
+}
 
 function MasterApi(maker, app) {
+
+    app.use(function (req, res, next) {
+        logger.info(`incoming restful request: ${req.method}, ${req.url}, ${req.method === "GET" ? JSON.stringify(req.query) : JSON.stringify(req.body)}`);
+        next();
+    });
+
     app.get("/v1/vendor", (req, res) => {
         let vid = req.query.vid || null;
         if (!vid) {
@@ -132,9 +144,31 @@ function MasterApi(maker, app) {
                 res.json({ err: "room_not_found" });
                 return;
             }
-            game.publish(result => {
-                res.json(result);
+            game.publish().then(result => {
+                res.json({err: null, data: result});
+            }).catch(e => {
+                res.json({err: e});
             });
+        }
+    });
+
+    app.post("/v1/stopAnswer", (req, res) => {
+        let gid = query.gid || null;
+
+        if (!gid) {
+            res.json({ err: "missing_room_id" });
+            return;
+        }
+
+        if (!game) {
+            res.json({err: "room_not_exist"});
+            return;
+        }
+        if (game.open) {
+            game.closeQuiz();
+            res.json({err: null});
+        } else {
+            res.json({err: "game_closed_already"});
         }
     });
 
@@ -167,15 +201,66 @@ function MasterApi(maker, app) {
         }
     });
 
-    app.post("/v1/inviteResponse", (req, res) => {
+    app.post("/v1/requestChannel", (req, res) => {
         let query = req.body;
-        let accept = query.accept || false;
-        let account = query.account || "";
+        let gid = query.gid || "";
+        let encrypt = query.encrypt || null;
+        let lang = query.QuestionLanguage || "0";
+        let quiz = "quiz-1";
 
-        if (!account) {
-            //insufficient info
+
+        if (!gid) {
+            res.json({ err: "missing_room_id" });
+            return;
+        }
+
+        let game = maker.get(gid);
+
+        if (!game) {
+            logger.info(`room not exist, create new...`);
+            quiz = lang === "0" ? "quiz-2" : "quiz-1";
+            if (!cipher.supported.includes(encrypt)) {
+                encrypt = null;
+                logger.info(`ignore unsupported encrpyt method ${encrypt}`);
+            }
+            logger.info(`using quiz set ${quiz}`);
+            QuizFactory.load(quiz).then(result => {
+                maker.add(new HQ.Game(gid, "Test Game1", result, encrypt)).catch(_ => { });
+                logger.info(`game ${gid} added`);
+                res.json({ type: "channel", data: gid });
+            });
+        } else {
+            logger.info(`room exits, reuse ${game.gid}`);
+            game.encrypt = encrypt;
+            game.reset();
+            res.json({ type: "channel", data: gid });
         }
     });
+
+    app.post("/v1/inviteRequest", (req, res) => {
+        let query = req.body;
+        let gid = query.gid || "";
+        let uid = query.uid || "";
+
+        if (!gid || !uid) {
+            res.json({ err: "info_missing" })
+            return;
+        }
+        let game = maker.get(gid);
+
+        if (!game) {
+            logger.info(`room ${gid} not exist, cannot invite`);
+            res.json({ err: "room_not_exist" });
+            return;
+        }
+
+        game.inviteRequest(uid).then(() => {
+            logger.info(`invite successfully sent to ${uid}`);
+            res.json({ err: null })
+        });
+    });
+
+
 
     app.post("/v1/answer", (req, res) => {
         let query = req.body;

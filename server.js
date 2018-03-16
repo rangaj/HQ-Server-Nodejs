@@ -46,16 +46,7 @@ if (cluster.isMaster) {
     let init = maker.init();
     init.then(() => {
         api(maker, app);
-        http_server.listen(process.env.PORT || 9500);
-        setInterval(() => {
-            if(!maker.sig){
-                logger.warn("signaling intance missing..try to recover")
-                maker.init();
-            } else {
-                logger.info("signaling ok...")
-            }
-        }, 60 * 1000);
-
+        http_server.listen(process.env.PORT || 9750);
     }).catch((e) => {
         logger.error(e);
     });

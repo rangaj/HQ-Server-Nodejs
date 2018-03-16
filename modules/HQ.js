@@ -1,13 +1,12 @@
-const Signal = require("./sig_agora");
 const logger = require("./logger").get("hq");
 const config = require("./config");
-const sig_appid = config.agora_appid;
 const cc_id = config.cc_id;
 const socks_host = config.socks_proxy_host;
 const socks_port = config.socks_proxy_port;
 const QuizFactory = require("./QuizFactory");
 const request = require("request");
 const Agent = require('socks5-http-client/lib/Agent');
+const sig_appid = config.agora_appid;
 let cipher = null;
 try {
     cipher = require("./Encrypt");
@@ -89,17 +88,19 @@ HQ.GameMaker = function () {
             return game.quizSet[game.sequence];
         };
 
-        this.publish = function (cb) {
-            if (game.open) {
-                cb({ err: "quiz_going_on" });
-                return;
-            }
-            if (!game.hasNext()) {
-                cb({ err: "no_more_quiz" });
-                return;
-            }
-            game.publishNextQuiz().then(_ => {
-                cb({});
+        this.publish = function () {
+            return new Promise((resolve, reject) => {
+                if (game.open) {
+                    reject("quiz_going_on");
+                    return;
+                }
+                if (!game.hasNext()) {
+                    reject("no_more_quiz");
+                    return;
+                }
+                game.publishNextQuiz().then(result => {
+                    resolve(result);
+                });
             });
         }
 
@@ -142,7 +143,6 @@ HQ.GameMaker = function () {
                 encrypted_quiz = encrypted_quiz ? { type: "quiz", data: encrypted_quiz, encrypt: game.encrypt } : { type: "quiz", data: quiz, encrypt: "null" };
                 raw_quiz = JSON.stringify(raw_quiz);
                 encrypted_quiz = JSON.stringify(encrypted_quiz);
-                server.sig.messageInstantSend(game.gid, raw_quiz);
                 var options = {
                     uri: `http://hq-im.agoraio.cn:8000/signaling/v1/${sig_appid}/sendChannelMessage`,
                     method: 'POST',
@@ -153,7 +153,7 @@ HQ.GameMaker = function () {
                 logger.info(`sending quiz ${encrypted_quiz} to ${game.gid}`)
                 request(options, function (error, response, body) {
                     if (!error && response.statusCode == 200) {
-                        resolve();
+                        resolve(raw_quiz);
                     } else {
                         reject(error);
                     }
@@ -369,107 +369,109 @@ HQ.GameMaker = function () {
     };
 
     this.init = () => {
-        return new Promise((resolve, reject) => {
-            let signal = new Signal(sig_appid);
-            signal.setup_debugging('env', 'lbs100');
-            server.sig = signal.login(cc_id, "_no_need_token");
-            server.sig.onLoginSuccess = function () {
-                logger.info(`agora cm login successful`);
+        return Promise.resolve();
+        // return new Promise((resolve, reject) => {
+        //     let signal = new Signal(sig_appid);
+        //     signal.setup_debugging('env', 'lbs100');
+        //     server.sig = signal.login(cc_id, "_no_need_token");
+        //     server.sig.onLoginSuccess = function () {
+        //         logger.info(`agora cm login successful`);
 
-                server.sig.onMessageInstantReceive = (account, uid, msg) => {
-                    logger.info(`cm received msg: ${msg} ${uid} ${account}`);
-                    let json = JSON.parse(msg);
-                    let game = server.get(account);
-                    let quiz = "quiz-1";
-                    let lang = 0;
-                    let encrypt = null;
-                    let inviteGame = null;
+        //         server.sig.onMessageInstantReceive = (account, uid, msg) => {
+        //             logger.info(`cm received msg: ${msg} ${uid} ${account}`);
+        //             let json = JSON.parse(msg);
+        //             let game = server.get(account);
+        //             let quiz = "quiz-1";
+        //             let lang = 0;
+        //             let encrypt = null;
+        //             let inviteGame = null;
 
-                    switch (json.type) {
-                        case "publish":
-                            if (!game) {
-                                server.sig.messageInstantSend(account, { type: "info", data: { err: "game not created yet" } })
-                                return;
-                            }
-                            game.publish(result => {
-                                logger.info(JSON.stringify(result));
-                                server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: result }));
-                            });
-                            break;
-                        case "stopAnswer":
-                            if (!game) {
-                                server.sig.messageInstantSend(account, { type: "info", data: { err: "game not created yet" } })
-                                return;
-                            }
-                            if (game.open) {
-                                game.closeQuiz();
-                                server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: { err: "game closed, waiting for summary info..." } }));
-                            } else {
-                                logger.info("try to stop a quiz which is already closed");
-                                server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: { err: "try to stop a quiz which is already closed" } }));
-                            }
-                            break;
-                        case "reset":
-                            if (!game) {
-                                server.sig.messageInstantSend(account, { type: "info", data: { err: "game not created yet" } })
-                                return;
-                            }
-                            game.reset();
-                            server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: {} }));
-                            break;
-                        case "RequestChannelName":
-                            if (!game) {
-                                logger.info(`room not exist, create new...`);
-                                quiz = json.QuestionLanguage === "0" ? "quiz-2" : "quiz-1";
-                                encrypt = json.encrypt || null;
-                                if (!cipher.supported.includes(encrypt)) {
-                                    encrypt = null;
-                                    logger.info(`ignore unsupported encrpyt method ${encrypt}`);
-                                }
-                                logger.info(`using quiz set ${quiz}`);
-                                QuizFactory.load(quiz).then(result => {
-                                    server.add(new HQ.Game(account, "Test Game1", result, encrypt)).catch(_ => { });
-                                    logger.info(`game ${account} added`);
-                                    server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
-                                });
-                            } else {
-                                logger.info(`room exits, reuse ${game.gid}`);
-                                game.reset();
-                                encrypt = json.encrypt || null;
-                                game.encrypt = encrypt;
-                                server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
-                            }
-                            break;
-                        case "inviteRequest":
-                            if (!game) {
-                                logger.info(`room ${account} not exist, cannot invite`);
-                                return;
-                            }
+        //             switch (json.type) {
+        //                 case "publish":
+        //                     if (!game) {
+        //                         server.sig.messageInstantSend(account, { type: "info", data: { err: "game not created yet" } })
+        //                         return;
+        //                     }
+        //                     game.publish(result => {
+        //                         logger.info(JSON.stringify(result));
+        //                         server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: result }));
+        //                     });
+        //                     break;
+        //                 case "stopAnswer":
+        //                     if (!game) {
+        //                         server.sig.messageInstantSend(account, { type: "info", data: { err: "game not created yet" } })
+        //                         return;
+        //                     }
+        //                     if (game.open) {
+        //                         game.closeQuiz();
+        //                         server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: { err: "game closed, waiting for summary info..." } }));
+        //                     } else {
+        //                         logger.info("try to stop a quiz which is already closed");
+        //                         server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: { err: "try to stop a quiz which is already closed" } }));
+        //                     }
+        //                     break;
+        //                 case "reset":
+        //                     if (!game) {
+        //                         server.sig.messageInstantSend(account, { type: "info", data: { err: "game not created yet" } })
+        //                         return;
+        //                     }
+        //                     game.reset();
+        //                     server.sig.messageInstantSend(game.gid, JSON.stringify({ type: "info", data: {} }));
+        //                     break;
+        //                 case "RequestChannelName":
+        //                     if (!game) {
+        //                         logger.info(`room not exist, create new...`);
+        //                         quiz = json.QuestionLanguage === "0" ? "quiz-2" : "quiz-1";
+        //                         encrypt = json.encrypt || null;
+        //                         if (!cipher.supported.includes(encrypt)) {
+        //                             encrypt = null;
+        //                             logger.info(`ignore unsupported encrpyt method ${encrypt}`);
+        //                         }
+        //                         logger.info(`using quiz set ${quiz}`);
+        //                         QuizFactory.load(quiz).then(result => {
+        //                             server.add(new HQ.Game(account, "Test Game1", result, encrypt)).catch(_ => { });
+        //                             logger.info(`game ${account} added`);
+        //                             server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
+        //                         });
+        //                     } else {
+        //                         logger.info(`room exits, reuse ${game.gid}`);
+        //                         game.reset();
+        //                         encrypt = json.encrypt || null;
+        //                         game.encrypt = encrypt;
+        //                         server.sig.messageInstantSend(account, JSON.stringify({ type: "channel", data: account }));
+        //                     }
+        //                     break;
+        //                 case "inviteRequest":
+        //                     if (!game) {
+        //                         logger.info(`room ${account} not exist, cannot invite`);
+        //                         return;
+        //                     }
 
-                            if (!json.data || !json.data.uid) {
-                                logger.info(`invitee not provided`)
-                                return;
-                            }
+        //                     if (!json.data || !json.data.uid) {
+        //                         logger.info(`invitee not provided`)
+        //                         return;
+        //                     }
 
-                            game.inviteRequest(json.data.uid).then(() => {
-                                logger.info(`invite successfully sent to ${json.data.uid}`);
-                            });
+        //                     game.inviteRequest(json.data.uid).then(() => {
+        //                         logger.info(`invite successfully sent to ${json.data.uid}`);
+        //                     });
 
-                            break;
-                    }
-                };
-                resolve();
-            };
-            server.sig.onLoginFailed = function () {
-                logger.error(`agora cm login failed`);
-                reject("failed");
-            };
+        //                     break;
+        //             }
+        //         };
+        //         resolve();
+        //     };
+        //     server.sig.onLoginFailed = function () {
+        //         logger.error(`agora cm login failed`);
+        //         server.sig = null;
+        //         reject("failed");
+        //     };
 
-            server.sig.onLogout = function () {
-                logger.warn("Server has logged out");
-                server.sig = null;
-            };
-        });
+        //     server.sig.onLogout = function () {
+        //         logger.warn("Server has logged out");
+        //         server.sig = null;
+        //     };
+        // });
     };
 };
 

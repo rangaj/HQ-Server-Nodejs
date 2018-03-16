@@ -6,8 +6,8 @@ function decrypt(algorithm, text, key) {
     return text;
 }
 
-
 module.exports = {
     encrypt: encrypt,
-    decrypt: decrypt
+    decrypt: decrypt,
+    supported: []
 }
