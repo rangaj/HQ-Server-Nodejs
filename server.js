@@ -6,7 +6,6 @@ const http_server = require("http").Server(app);
 const logger = require("./modules/logger").get("hq");
 const HQ = require("./modules/HQ");
 const cluster = require("cluster");
-const numCPUs = require("os").cpus().length;
 const QuizFactory = require("./modules/QuizFactory")
 
 
@@ -38,17 +37,22 @@ function initProcess(application) {
     });
 }
 
+let server = null;
+
 if (cluster.isMaster) {
     //master node
-    const api = require("./modules/Api").master;
+    const api = require("./modules/ApiRestful");
     initProcess(app);
     let maker = new HQ.GameMaker();
     let init = maker.init();
     init.then(() => {
         api(maker, app);
-        http_server.listen(process.env.PORT || 9750);
+        http_server.listen(process.env.PORT || 10000);
     }).catch((e) => {
         logger.error(e);
     });
 } else {
 }
+
+
+module.exports = http_server;

@@ -23,5 +23,8 @@
     "winston": "^3.0.0-rc1",
     "ws": "^4.0.0",
     "xmlhttprequest": "^1.8.0"
+  },
+  "devDependencies": {
+    "supertest": "^3.0.0"
   }
 }
