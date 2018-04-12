@@ -10,10 +10,8 @@ module.exports = {
       name      : 'HQ-3',
       script    : 'server.js',
       env: {
-        COMMON_VARIABLE: 'true'
-      },
-      env_production : {
-        NODE_ENV: 'production'
+        COMMON_VARIABLE: 'true',
+	NODE_ENV: 'production'
       }
     }
   ]

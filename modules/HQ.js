@@ -105,8 +105,6 @@ class Game {
         this.sequence = 0;
         this.open = false;
         this.live = false;
-        this.answers = {};
-        this.gameovers = {};
         this.players = {};
         this.sig_session = null;
         this.timeout = 20;
@@ -122,8 +120,7 @@ class Game {
         this.sequence = 0;
         this.open = false;
         this.live = false;
-        this.answers = {};
-        this.gameovers = {};
+        this.players = {};
     };
 
     setLive(live) {
@@ -162,11 +159,12 @@ class Game {
         if (game.sequence === 0) {
             return { result: true };
         }
-        if (!game.players[uid]) {
+        let player = game.players[uid];
+        if (!player) {
             logger.info(`not a player ${uid}`);
             return { result: false, err: `not a player ${uid}` };
         } else {
-            if (game.gameovers[uid]) {
+            if (!player.alive) {
                 logger.info(`${uid} is already game over`);
                 return { result: false, err: `${uid} is already game over` };
             } else {
@@ -191,7 +189,6 @@ class Game {
             delete quiz.answer;
             quiz.total = game.quizSet.length;
             quiz.timeout = game.timeout;
-            game.answers[quiz.id] = {};
             if (cipher.supported.includes(game.encrypt)) {
                 encrypted_quiz = cipher.encrypt("v1", JSON.stringify(quiz), game.gid);
             }
@@ -217,6 +214,18 @@ class Game {
         });
     };
 
+    joinGame(uid, force){
+        let game = this;
+        let player = game.players[uid];
+        if(player && !force){
+            logger.error(`user ${uid} already exists`);
+            return player;
+        }
+        player = {alive: true, answers: {}};
+        game.players[uid] = player;
+        return player;
+    };
+
     relive(uid) {
         let game = this;
         logger.info(`player ${uid} try to revive himself...`)
@@ -226,14 +235,17 @@ class Game {
             logger.info(`player ${uid} revive not needed`)
         } else {
             logger.info(`god bless ${uid}....now your life has returned`);
-            game.gameovers[uid] = undefined;
-            game.players[uid] = true;
+            this.joinGame(uid, true);
         }
     };
 
     answerCommited(uid) {
         let game = this;
-        return game.answers[game.sequence][uid] !== undefined;
+        let player = game.players[uid];
+        if(!player){
+            return false;
+        }
+        return player.answers[game.sequence] !== undefined;
     };
 
     commitanswer(uid, result) {
@@ -241,6 +253,18 @@ class Game {
         let question = game.quizSet[game.sequence];
         let resultSize = question.options.length;
         let answer = parseInt(result);
+        let player = game.players[uid];
+
+
+        if (game.sequence === 0) {
+            //join game if it's first answer
+            player = this.joinGame(uid);
+        }
+
+        if(!player){
+            logger.info(`not a player ${uid}`);
+            return;
+        }
 
         if (answer >= resultSize || answer < 0) {
             logger.error("invalid answer");
@@ -249,41 +273,44 @@ class Game {
 
         let correct_answer = question.answer;
         if (answer !== correct_answer) {
-            game.gameovers[uid] = true;
+            player.alive = false;
         }
 
         logger.info(`anwser collected from ${uid}, ${answer}`);
-        game.answers[game.sequence][uid] = answer;
-        if (game.sequence === 0) {
-            game.players[uid] = true;
-        }
+        player.answers[game.sequence] = answer;
     };
 
 
     summaryResult(sequence) {
         let game = this;
         return new Promise((resolve, reject) => {
-            let results = game.answers[sequence] || {};
+            let results = {};
             let quiz = game.quizSet[sequence];
             let options = quiz.options;
             let answer = game.quizSet[sequence].answer;
             let rightUids = [];
             let wrongUids = [];
             let resultSpread = {};
+            let players = game.players;
 
             for (let i = 0; i < options.length; i++) {
                 resultSpread[i] = 0;
             }
+            //-1 for missing answers
+            resultSpread[-1] = 0;
 
-            Object.keys(results).forEach(uid => {
-                let commited = results[uid];
+
+            Object.keys(players).forEach(uid => {
+                let player = players[uid];
+                let commited = player.answers[sequence];
                 if (commited === answer) {
                     rightUids.push(uid);
                 } else {
                     wrongUids.push(uid);
                 }
-                (resultSpread[commited] !== undefined) && resultSpread[commited]++;
+                (resultSpread[commited] !== undefined) ? resultSpread[commited]++ : resultSpread[-1]++;
             });
+
             if (sequence === game.quizSet.length - 1) {
                 logger.info("=========================FINAL ROUND==========================");
             } else {
@@ -291,13 +318,13 @@ class Game {
             }
             logger.info(`right: ${rightUids.length} in total,  {${JSON.stringify(rightUids)}}`);
             logger.info(`wrong: ${wrongUids.length} in total, {${JSON.stringify(wrongUids)}}`);
-            logger.info(`total: ${Object.keys(results).length} in total, {${JSON.stringify(rightUids)}`);
+            logger.info(`total: ${rightUids.length + wrongUids.length} in total, {${JSON.stringify(rightUids)}`);
             logger.info(`spread: ${JSON.stringify(resultSpread)}`);
             let data = JSON.stringify({
                 type: "result",
                 data: {
                     correct: rightUids.length,
-                    total: Object.keys(results).length,
+                    total: rightUids.length + wrongUids.length,
                     sid: sequence,
                     result: answer,
                     spread: resultSpread

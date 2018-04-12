@@ -84,7 +84,7 @@ const ApiRestful = (maker, app) => {
         let game = maker.get(gid);
 
         if (!game) {
-            res.json({err: "room_not_exist"});
+            res.json({err: "room_not_found"});
             return;
         }
         if (game.open) {
@@ -147,7 +147,7 @@ const ApiRestful = (maker, app) => {
 
         if (!game) {
             logger.info(`room ${gid} not exist, cannot invite`);
-            res.json({ err: "room_not_exist" });
+            res.json({ err: "room_not_found" });
             return;
         }
 
@@ -248,7 +248,7 @@ const ApiRestful = (maker, app) => {
                     res.json({ err: "game_closed" });
                     return;
                 }
-                if (!game.canplay(uid)) {
+                if (!game.canplay(uid).result) {
                     logger.info(`cannot_play`);
                     res.json({ err: "cannot_play" });
                     return;
